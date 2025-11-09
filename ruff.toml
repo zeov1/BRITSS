@@ -1,0 +1,33 @@
+line-length = 120
+indent-width = 4
+target-version = "py312"
+
+
+[lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflake8
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "Q",  # ...
+]
+ignore = ["RUF002"]
+fixable = ["ALL"]
+unfixable = []
+# dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+
+[lint.flake8-quotes]
+docstring-quotes = "double"
+
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"

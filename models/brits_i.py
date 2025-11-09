@@ -1,20 +1,7 @@
+import rits_i
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-
 from torch.autograd import Variable
-from torch.nn.parameter import Parameter
-
-import math
-import utils
-import argparse
-import data_loader
-
-import rits_i
-from sklearn import metrics
-
-from ipdb import set_trace
 
 SEQ_LEN = 36
 RNN_HID_SIZE = 64
@@ -22,7 +9,7 @@ RNN_HID_SIZE = 64
 
 class Model(nn.Module):
     def __init__(self):
-        super(Model, self).__init__()
+        super().__init__()
         self.build()
 
     def build(self):
@@ -30,26 +17,26 @@ class Model(nn.Module):
         self.rits_b = rits_i.Model()
 
     def forward(self, data):
-        ret_f = self.rits_f(data, 'forward')
-        ret_b = self.reverse(self.rits_b(data, 'backward'))
+        ret_f = self.rits_f(data, "forward")
+        ret_b = self.reverse(self.rits_b(data, "backward"))
 
         ret = self.merge_ret(ret_f, ret_b)
 
         return ret
 
     def merge_ret(self, ret_f, ret_b):
-        loss_f = ret_f['loss']
-        loss_b = ret_b['loss']
-        loss_c = self.get_consistency_loss(ret_f['imputations'], ret_b['imputations'])
+        loss_f = ret_f["loss"]
+        loss_b = ret_b["loss"]
+        loss_c = self.get_consistency_loss(ret_f["imputations"], ret_b["imputations"])
 
         loss = loss_f + loss_b + loss_c
 
-        predictions = (ret_f['predictions'] + ret_b['predictions']) / 2
-        imputations = (ret_f['imputations'] + ret_b['imputations']) / 2
+        predictions = (ret_f["predictions"] + ret_b["predictions"]) / 2
+        imputations = (ret_f["imputations"] + ret_b["imputations"]) / 2
 
-        ret_f['loss'] = loss
-        ret_f['predictions'] = predictions
-        ret_f['imputations'] = imputations
+        ret_f["loss"] = loss
+        ret_f["predictions"] = predictions
+        ret_f["imputations"] = imputations
 
         return ret_f
 
@@ -79,7 +66,7 @@ class Model(nn.Module):
 
         if optimizer is not None:
             optimizer.zero_grad()
-            ret['loss'].backward()
+            ret["loss"].backward()
             optimizer.step()
 
         return ret

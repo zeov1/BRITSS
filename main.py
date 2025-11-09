@@ -1,28 +1,23 @@
-import copy
-import time
 import argparse
+import importlib.util
 import os
 import sys
-import importlib.util
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from sklearn import metrics
-import matplotlib.pyplot as plt
 
-import utils
 import data_loader
-
+import utils
 
 # Загружаем модели вручную (rits, brits и т.д.)
-module_names = ['rits_i', 'brits_i', 'rits', 'brits']
-models = type('models', (object,), {})()
+module_names = ["rits_i", "brits_i", "rits", "brits"]
+models = type("models", (object,), {})()
 
 for module_name in module_names:
-    module_path = f'/content/BRITSS/models/{module_name}.py'
+    module_path = f"/content/BRITSS/models/{module_name}.py"
     if not os.path.exists(module_path):
         print(f"Error: Module file not found at {module_path}")
         sys.exit(1)
@@ -35,9 +30,9 @@ for module_name in module_names:
 
 # ПАРСЕР аргументов
 parser = argparse.ArgumentParser()
-parser.add_argument('--epochs', type=int, default=50)
-parser.add_argument('--batch_size', type=int, default=32)
-parser.add_argument('--model', type=str, required=True)
+parser.add_argument("--epochs", type=int, default=50)
+parser.add_argument("--batch_size", type=int, default=32)
+parser.add_argument("--model", type=str, required=True)
 args = parser.parse_args()
 
 
@@ -56,11 +51,11 @@ def train(model):
         for idx, data in enumerate(data_iter):
             data = utils.to_var(data)
             ret = model.run_on_batch(data, optimizer)
-            run_loss += ret['loss'].item()
+            run_loss += ret["loss"].item()
             pct = (idx + 1) * 100.0 / len(data_iter)
             avg_loss = run_loss / (idx + 1.0)
             print(f"\rProgress epoch {epoch}, {pct:.2f}%, average loss {avg_loss:.6f}",
-                  end='', flush=True)
+                  end="", flush=True)
         print()
 
         mae, mre, auc = evaluate(model, data_iter)
@@ -98,13 +93,13 @@ def evaluate(model, val_iter):
             data = utils.to_var(data)
             ret = model.run_on_batch(data, None)
 
-            pred = ret['predictions'].data.cpu().numpy()
-            label = ret['labels'].data.cpu().numpy()
-            is_train = ret['is_train'].data.cpu().numpy()
+            pred = ret["predictions"].data.cpu().numpy()
+            label = ret["labels"].data.cpu().numpy()
+            is_train = ret["is_train"].data.cpu().numpy()
 
-            eval_masks = ret['eval_masks'].data.cpu().numpy()
-            eval_ = ret['evals'].data.cpu().numpy()
-            imputation = ret['imputations'].data.cpu().numpy()
+            eval_masks = ret["eval_masks"].data.cpu().numpy()
+            eval_ = ret["evals"].data.cpu().numpy()
+            imputation = ret["imputations"].data.cpu().numpy()
 
             evals += eval_[np.where(eval_masks == 1)].tolist()
             imputations += imputation[np.where(eval_masks == 1)].tolist()
@@ -117,7 +112,7 @@ def evaluate(model, val_iter):
     mae = np.abs(evals - imputations).mean()
     mre = np.abs(evals - imputations).sum() / np.abs(evals).sum()
 
-    labels = np.asarray(labels).astype('int32')
+    labels = np.asarray(labels).astype("int32")
     preds = np.asarray(preds)
     auc = metrics.roc_auc_score(labels, preds)
 
@@ -131,8 +126,7 @@ def evaluate(model, val_iter):
 
 
 def visualize_examples(model, loader, feature_idx=0, min_obs=5, n_examples=3, out_prefix="imputation_example"):
-    """
-    Сохраняет несколько графиков (png) с примерами иммутации временных рядов.
+    """Сохраняет несколько графиков (png) с примерами иммутации временных рядов.
 
     model       : обученная модель
     loader      : DataLoader
@@ -143,15 +137,15 @@ def visualize_examples(model, loader, feature_idx=0, min_obs=5, n_examples=3, ou
     """
     model.eval()
     examples_plotted = 0
-    
+
     with torch.no_grad():
         for batch in loader:
             batch = utils.to_var(batch)
             ret = model.run_on_batch(batch, None)
 
-            values = batch['forward']['values'].cpu().numpy()
-            masks = batch['forward']['masks'].cpu().numpy()
-            imputations = ret['imputations'].cpu().numpy()
+            values = batch["forward"]["values"].cpu().numpy()
+            masks = batch["forward"]["masks"].cpu().numpy()
+            imputations = ret["imputations"].cpu().numpy()
 
             B, T, D = values.shape
 
@@ -194,7 +188,7 @@ def run():
     train(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run()
 
 
