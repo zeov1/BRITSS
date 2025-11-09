@@ -12,20 +12,34 @@ from sklearn import metrics
 import data_loader
 import utils
 
+import warnings
+
+# Suppress warnings
+warnings.filterwarnings(
+    "ignore", category=UserWarning, message="nn.functional.sigmoid is deprecated. Use torch.sigmoid instead."
+)
+
 # Загружаем модели вручную (rits, brits и т.д.)
 module_names = ["rits_i", "brits_i", "rits", "brits"]
 models = type("models", (object,), {})()
 
 for module_name in module_names:
-    module_path = f"/content/BRITSS/models/{module_name}.py"
+    module_path = f"models/{module_name}.py"
     if not os.path.exists(module_path):
         print(f"Error: Module file not found at {module_path}")
         sys.exit(1)
     spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None:
+        print(f"Cannot find module {module_name} in {module_path}")
+        sys.exit(1)
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     setattr(models, module_name, module)
-    spec.loader.exec_module(module)
+    loader = spec.loader
+    if loader is None:
+        print(f"Cannot load module {module_name}")
+        sys.exit(1)
+    loader.exec_module(module)
 
 
 # ПАРСЕР аргументов
@@ -126,7 +140,7 @@ def evaluate(model, val_iter):
 
 
 def visualize_examples(model, loader, feature_idx=0, min_obs=5, n_examples=3, out_prefix="imputation_example"):
-    """Сохраняет несколько графиков (png) с примерами иммутации временных рядов.
+    """Сохраняет несколько графиков (png) с примерами импутации временных рядов.
 
     model       : обученная модель
     loader      : DataLoader
@@ -143,8 +157,8 @@ def visualize_examples(model, loader, feature_idx=0, min_obs=5, n_examples=3, ou
             batch = utils.to_var(batch)
             ret = model.run_on_batch(batch, None)
 
-            values = batch["forward"]["values"].cpu().numpy()
-            masks = batch["forward"]["masks"].cpu().numpy()
+            values = batch["forward"]["values"].cpu().numpy() # type: ignore
+            masks = batch["forward"]["masks"].cpu().numpy() # type: ignore
             imputations = ret["imputations"].cpu().numpy()
 
             B, T, D = values.shape
