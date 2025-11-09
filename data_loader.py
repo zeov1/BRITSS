@@ -1,6 +1,5 @@
 import os
-from collections.abc import Iterable
-from typing import Any
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -29,21 +28,21 @@ class MySet(Dataset):
 
         n = len(self.content)
         indices = np.arange(n)
-        rng = np.random.default_rng(seed)
+        np.random.seed(seed)
         val_sz = max(1, round(n * val_ratio))
-        val_indices = rng.choice(indices, size=val_sz, replace=False)
+        val_indices = np.random.choice(indices, size=val_sz, replace=False)
         self.val_indices = {int(i) for i in val_indices}
 
     def __len__(self) -> int:
         return len(self.content)
 
-    def __getitem__(self, idx: int) -> dict[str, Any]:
+    def __getitem__(self, idx: int) -> Dict:
         rec = json.loads(self.content[idx])
         rec["is_train"] = 0 if idx in self.val_indices else 1
         return rec
 
 
-def _pack_time_series(recs: Iterable[list[dict[str, Any]]]) -> dict[str, torch.Tensor]:
+def _pack_time_series(recs) -> Dict:
     """Преобразует список записей по батчу и времени в батч тензоров.
     
     Ожидается, что recs — это список длины B,
@@ -69,7 +68,7 @@ def _pack_time_series(recs: Iterable[list[dict[str, Any]]]) -> dict[str, torch.T
     }
 
 
-def collate_fn(recs: list[dict[str, Any]]) -> dict[str, Any]:
+def collate_fn(recs: List) -> Dict:
     forward = [x["forward"] for x in recs]
     backward = [x["backward"] for x in recs]
 
@@ -82,7 +81,7 @@ def collate_fn(recs: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def get_loader(batch_size: int = 64, shuffle: bool = True) -> DataLoader:
-    """Возвращает DataLoader с аккуратным числом воркеров для Colab."""
+    """Возвращает DataLoader с числом воркеров для Colab."""
     data_set = MySet()
 
     # Безопасное число воркеров (Colab часто ругается на 4+)
