@@ -12,14 +12,9 @@ from sklearn import metrics
 import data_loader
 import utils
 
-import warnings
+RESULTS_PATH = "results"
 
-# Suppress warnings
-warnings.filterwarnings(
-    "ignore", category=UserWarning, message="nn.functional.sigmoid is deprecated. Use torch.sigmoid instead."
-)
-
-# Загружаем модели вручную (rits, brits и т.д.)
+# Loading models (rits, brits etc.)
 module_names = ["rits_i", "brits_i", "rits", "brits"]
 models = type("models", (object,), {})()
 
@@ -42,21 +37,22 @@ for module_name in module_names:
     loader.exec_module(module)
 
 
-# ПАРСЕР аргументов
+# Args parser
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=50)
 parser.add_argument("--batch_size", type=int, default=32)
-parser.add_argument("--model", type=str, required=True)
+parser.add_argument("--model", type=str, default="brits")
 args = parser.parse_args()
 
 
-# ==================== ОБУЧЕНИЕ ====================
+# --- Training ---
 
 def train(model):
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     data_iter = data_loader.get_loader(batch_size=args.batch_size)
 
     val_mae_hist = []
+    val_mre_hist = []
 
     for epoch in range(args.epochs):
         model.train()
@@ -74,27 +70,35 @@ def train(model):
 
         mae, mre, auc = evaluate(model, data_iter)
         val_mae_hist.append(mae)
+        val_mre_hist.append(mre)
 
-    # сохраняем веса
-    torch.save(model.state_dict(), "model.pth")
-    print("✅ Model saved to model.pth")
+    # save weights
+    model_name = f"model-{args.model}.pth"
+    torch.save(model.state_dict(), model_name)
+    print(f"Model saved to {model_name}")
 
-    # график MAE (Fig.4)
-    plt.figure()
-    plt.plot(range(1, len(val_mae_hist)+1), val_mae_hist)
-    plt.xlabel("Epoch")
-    plt.ylabel("Imputation Error (MAE)")
-    plt.title("Validation imputation error (BRITS)")
+    # MAE, MRE graphs
+    fig, ax = plt.subplots(ncols=2, nrows=1)
+    fig.set_size_inches(12, 7)
+    
+    ax[0].plot(range(1, len(val_mae_hist) + 1), val_mae_hist)
+    ax[0].set_title(f"Validation imputation error, MAE ({args.model.capitalize()})")
+    ax[0].set_xlabel("Epoch")
+    ax[0].set_ylabel("Imputation Error (MAE)")
+    
+    ax[1].plot(range(1, len(val_mre_hist) + 1), val_mre_hist)
+    ax[1].set_title(f"Validation imputation error, MRE ({args.model.capitalize()})")
+    ax[1].set_xlabel("Epoch")
+    ax[1].set_ylabel("Imputation Error (MRE)")
+    
+    figname = f"val_imputation_error_{args.model}.png"
+
     plt.tight_layout()
-    plt.savefig("val_imputation_error.png")
+    plt.savefig(os.path.join(RESULTS_PATH, figname))
     plt.show()
 
-    # после обучения — сохраняем графики
+    # save graphs
     visualize_examples(model, data_iter, feature_idx=0, min_obs=5, n_examples=3)
-
-    # плюс можно сохранить модель
-    #torch.save(model.state_dict(), "model.pth")
-    #print("✅ Model saved to model.pth")
 
 
 def evaluate(model, val_iter):
@@ -136,8 +140,7 @@ def evaluate(model, val_iter):
     return mae, mre, auc
 
 
-# ==================== ВИЗУАЛИЗАЦИЯ (Fig.3) ====================
-
+# --- Visualisation ---
 
 def visualize_examples(model, loader, feature_idx=0, min_obs=5, n_examples=3, out_prefix="imputation_example"):
     """Сохраняет несколько графиков (png) с примерами импутации временных рядов.
@@ -171,7 +174,7 @@ def visualize_examples(model, loader, feature_idx=0, min_obs=5, n_examples=3, ou
                 if msk.sum() < min_obs:
                     continue
 
-                plt.figure(figsize=(6, 3))
+                plt.figure(figsize=(12, 6))
                 plt.plot(obs, "b-", label="observations")
                 plt.plot(np.where(msk == 0)[0], obs[msk == 0], "g--", label="missing values")
                 plt.plot(imp, "orange", linestyle="--", label="BRITS imputations")
@@ -181,19 +184,15 @@ def visualize_examples(model, loader, feature_idx=0, min_obs=5, n_examples=3, ou
                 plt.legend()
                 plt.tight_layout()
 
-                out_file = f"{out_prefix}_{examples_plotted}.png"
-                plt.savefig(out_file)
+                out_file = f"{out_prefix}_{args.model}_{examples_plotted}.png"
+                plt.savefig(os.path.join(RESULTS_PATH, out_file))
                 plt.close()
-                print(f"✅ Saved {out_file}")
+                print(f"Saved {out_file}!")
 
                 examples_plotted += 1
                 if examples_plotted >= n_examples:
                     return
 
-
-
-
-# ==================== RUN ====================
 
 def run():
     model = getattr(models, args.model).Model()

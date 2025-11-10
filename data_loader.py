@@ -43,12 +43,6 @@ class MySet(Dataset):
 
 
 def _pack_time_series(recs) -> Dict:
-    """Преобразует список записей по батчу и времени в батч тензоров.
-    
-    Ожидается, что recs — это список длины B,
-    где каждый элемент — список длины T из словарей с нужными полями.
-    Результаты имеют форму [B, T, ...].
-    """
     # Вложенные списки: [batch][time][feature]
     values = [[x["values"] for x in r] for r in recs]
     masks = [[x["masks"] for x in r] for r in recs]
@@ -57,7 +51,6 @@ def _pack_time_series(recs) -> Dict:
     evals = [[x["evals"] for x in r] for r in recs]
     eval_ms = [[x["eval_masks"] for x in r] for r in recs]
 
-    # Преобразуем в float32 тензоры
     return {
         "values": torch.tensor(values, dtype=torch.float32),
         "masks": torch.tensor(masks, dtype=torch.float32),
@@ -81,11 +74,10 @@ def collate_fn(recs: List) -> Dict:
 
 
 def get_loader(batch_size: int = 64, shuffle: bool = True) -> DataLoader:
-    """Возвращает DataLoader с числом воркеров для Colab."""
     data_set = MySet()
 
     # Безопасное число воркеров (Colab часто ругается на 4+)
-    max_suggested = 2
+    max_suggested = 4
     cpu_cnt = os.cpu_count() or 2
     num_workers = min(max_suggested, cpu_cnt)
 
