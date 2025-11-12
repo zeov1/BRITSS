@@ -3,6 +3,7 @@ import importlib.util
 import os
 import sys
 
+from matplotlib.markers import MarkerStyle
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -42,14 +43,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=50)
 parser.add_argument("--batch_size", type=int, default=32)
 parser.add_argument("--model", type=str, default="brits")
+parser.add_argument("--weights", type=str, default=None)
 args = parser.parse_args()
 
 
 # --- Training ---
 
-def train(model):
+def train(model, data_iter):
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    data_iter = data_loader.get_loader(batch_size=args.batch_size)
 
     val_mae_hist = []
     val_mre_hist = []
@@ -82,12 +83,12 @@ def train(model):
     fig.set_size_inches(12, 7)
     
     ax[0].plot(range(1, len(val_mae_hist) + 1), val_mae_hist)
-    ax[0].set_title(f"Validation imputation error, MAE ({args.model.capitalize()})")
+    ax[0].set_title(f"Validation imputation error, MAE ({args.model.upper()})")
     ax[0].set_xlabel("Epoch")
     ax[0].set_ylabel("Imputation Error (MAE)")
     
     ax[1].plot(range(1, len(val_mre_hist) + 1), val_mre_hist)
-    ax[1].set_title(f"Validation imputation error, MRE ({args.model.capitalize()})")
+    ax[1].set_title(f"Validation imputation error, MRE ({args.model.upper()})")
     ax[1].set_xlabel("Epoch")
     ax[1].set_ylabel("Imputation Error (MRE)")
     
@@ -96,9 +97,6 @@ def train(model):
     plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_PATH, figname))
     plt.show()
-
-    # save graphs
-    visualize_examples(model, data_iter, feature_idx=0, min_obs=5, n_examples=3)
 
 
 def evaluate(model, val_iter):
@@ -161,24 +159,41 @@ def visualize_examples(model, loader, feature_idx=0, min_obs=5, n_examples=3, ou
             ret = model.run_on_batch(batch, None)
 
             values = batch["forward"]["values"].cpu().numpy() # type: ignore
+            evals = batch["forward"]["evals"].cpu().numpy() # type: ignore
             masks = batch["forward"]["masks"].cpu().numpy() # type: ignore
+            eval_masks = batch["forward"]["eval_masks"].cpu().numpy() # type: ignore
             imputations = ret["imputations"].cpu().numpy()
 
-            B, T, D = values.shape
+            B, _, _ = values.shape
 
             for b in range(B):
-                obs = values[b, :, feature_idx]
                 msk = masks[b, :, feature_idx]
                 imp = imputations[b, :, feature_idx]
+                evs = evals[b, :, feature_idx]
+                evm = eval_masks[b, :, feature_idx]
 
                 if msk.sum() < min_obs:
                     continue
 
                 plt.figure(figsize=(12, 6))
-                plt.plot(obs, "b-", label="observations")
-                plt.plot(np.where(msk == 0)[0], obs[msk == 0], "g--", label="missing values")
-                plt.plot(imp, "orange", linestyle="--", label="BRITS imputations")
+                plt.scatter(
+                    np.where(evm == 1)[0],
+                    evs[evm == 1],
+                    color="k",
+                    marker=MarkerStyle("x"),
+                    alpha=0.5,
+                    label="imputation (ground truth)"
+                )
+                plt.plot(evs, "b-", label="evals")
+                plt.plot(imp, "orange", linestyle="--", label=f"{args.model.upper()} imputations")
                 plt.title("Time series imputation example")
+
+                print("Example:")
+                print(f"1. true values ('values'):\n{evs}")
+                print(f"2. missing values ('mask=0'):\n{np.where(msk == 0)[0]}")
+                print(f"3. {args.model.upper()} imputations:\n{imp}")
+                print()
+
                 plt.xlabel("steps")
                 plt.ylabel("value")
                 plt.legend()
@@ -196,9 +211,27 @@ def visualize_examples(model, loader, feature_idx=0, min_obs=5, n_examples=3, ou
 
 def run():
     model = getattr(models, args.model).Model()
+    data_iter = data_loader.get_loader(batch_size=args.batch_size)
+
     if torch.cuda.is_available():
         model = model.cuda()
-    train(model)
+
+    if args.weights:
+        if not os.path.isfile(args.weights):
+            print(f"path doesnt exist: {args.weights}")
+            return
+        if not os.path.splitext(os.path.basename(args.weights))[1] == ".pth":
+            print(f"path is not .pth file: {args.weights}")
+            print(os.path.splitext(os.path.basename(args.weights)))
+            return
+        print(f"loading weights from {args.weights}...")
+        state_dict = torch.load(args.weights, map_location="cpu")
+        model.load_state_dict(state_dict)
+        print("weights are loaded!")
+    else:
+        train(model, data_iter)
+    
+    visualize_examples(model, data_iter, feature_idx=0, min_obs=5, n_examples=5)
 
 
 if __name__ == "__main__":
